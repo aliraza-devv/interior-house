@@ -2,8 +2,9 @@
 
 import Image from "next/image";
 import { useLayoutEffect, useRef } from "react";
-import { MagneticLink } from "@/components/ui/MagneticLink";
-import { gsap, ScrollTrigger } from "@/lib/gsap";
+import { ArrowRight } from "@phosphor-icons/react";
+import { gsap } from "@/lib/gsap";
+import { ABOUT_IMAGE, ABOUT_IMAGE_ASPECT } from "@/lib/media";
 
 // Placeholder footage and photography. Replace with the studio's own project film and shots.
 const VIDEO_HD = "https://videos.pexels.com/video-files/39024329/16605454_1920_1080_30fps.mp4";
@@ -24,6 +25,7 @@ const TILES: readonly ({ kind: "photo"; id: string } | { kind: "video" })[] = [
   { kind: "video" },
 ];
 const VIDEO_INDEX = TILES.length - 1;
+const OVERSCAN = 4; // px of horizontal overscan on the full-bleed video, so no sub-pixel sliver can show
 
 // Timeline (seconds)
 const T_WAVE = 0.75; // first tile starts to jump
@@ -39,8 +41,8 @@ const CONVERGE_LEN = 0.95;
  * 2. Like a loader, the tiles jump one after another, left to right, while the counter climbs to 100.
  * 3. At 100 the row settles back into a straight line, then slides together into one stack. The video tile
  *    is last in the row and on top of the stack.
- * 4. The video tile opens to full bleed. Copy rises in, the nav arrives.
- * 5. Scroll: hero pins, the video drifts forward and darkens, copy lifts away.
+ * 4. The video tile opens to full bleed. Copy rises in, the nav arrives, and "hero:intro-complete" fires.
+ * 5. StoryScroll (separate component) then morphs the video card into the About image on scroll.
  *
  * The video tile is a viewport-sized element scaled down with a UNIFORM transform and cropped square with
  * clip-path, so it is never stretched and opens without a jump. Only transform, opacity and clip-path animate.
@@ -51,20 +53,30 @@ export function Hero() {
   const root = useRef<HTMLElement>(null);
   const video = useRef<HTMLVideoElement>(null);
   const scrim = useRef<HTMLDivElement>(null);
-  const dim = useRef<HTMLDivElement>(null);
   const counter = useRef<HTMLSpanElement>(null);
-  const content = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
     const section = root.current;
     const videoEl = video.current;
     const scrimEl = scrim.current;
-    const dimEl = dim.current;
     const counterEl = counter.current;
-    const contentEl = content.current;
-    if (!section || !videoEl || !scrimEl || !dimEl || !counterEl || !contentEl) return;
+    if (!section || !videoEl || !scrimEl || !counterEl) return;
 
     const html = document.documentElement;
+    const body = document.body;
+    // Scroll lock that does not touch the scrollbar: the body is pinned, the (always visible) track stays disabled
+    const lock = () => {
+      body.style.position = "fixed";
+      body.style.top = "0";
+      body.style.left = "0";
+      body.style.width = "100%";
+    };
+    const unlock = () => {
+      body.style.position = "";
+      body.style.top = "";
+      body.style.left = "";
+      body.style.width = "";
+    };
 
     // A reload must replay the loader from the top
     if ("scrollRestoration" in history) history.scrollRestoration = "manual";
@@ -75,12 +87,9 @@ export function Hero() {
 
     let cancelled = false;
     let expandTl: gsap.core.Timeline | undefined;
-    let scrollTl: gsap.core.Timeline | undefined;
     const killLate = () => {
       cancelled = true;
       expandTl?.kill();
-      scrollTl?.scrollTrigger?.kill(true);
-      scrollTl?.kill();
     };
 
     const ctx = gsap.context(() => {
@@ -96,6 +105,7 @@ export function Hero() {
           const chrome = gsap.utils.toArray<HTMLElement>(".hero-chrome", section);
           const lines = gsap.utils.toArray<HTMLElement>(".hero-line > span", section);
           const fades = gsap.utils.toArray<HTMLElement>(".hero-fade", section);
+          const draws = gsap.utils.toArray<HTMLElement>(".hero-draw", section);
           const imgs = gsap.utils.toArray<HTMLElement>(".g-img", section);
 
           // Reduced motion: no loader, no autoplay (first frame stays still), static full-bleed hero
@@ -111,7 +121,7 @@ export function Hero() {
           }
 
           html.dataset.loading = "true";
-          html.style.overflow = "hidden";
+          lock();
           void videoEl.play().catch(() => {});
 
           const W = section.clientWidth;
@@ -127,7 +137,7 @@ export function Hero() {
 
           // The video tile is a viewport-sized element (at least as wide as tall) scaled down to the tile
           // and clipped to a square, so no part of it is ever stretched.
-          const wV = Math.max(W, H);
+          const wV = Math.max(W + OVERSCAN, H);
           const crop = (visibleW: number) => {
             const i = (wV - visibleW) / 2;
             return `inset(0px ${i}px 0px ${i}px)`;
@@ -151,6 +161,7 @@ export function Hero() {
           gsap.set(chrome, { autoAlpha: 0, y: 12 });
           gsap.set(lines, { yPercent: 115 });
           gsap.set(fades, { autoAlpha: 0, y: 22 });
+          gsap.set(draws, { scaleX: 0, transformOrigin: "0% 50%" });
           gsap.set(scrimEl, { opacity: 0 });
 
           // Resolve when the video can play, or after 7s so a slow connection never traps the visitor
@@ -170,29 +181,24 @@ export function Hero() {
             });
             gsap.set(vCard, { clearProps: "all" });
             vCard.dataset.final = "true";
-            html.style.overflow = "";
-            scrollTl = gsap
-              .timeline({
-                defaults: { ease: "none" },
-                scrollTrigger: { trigger: section, start: "top top", end: "+=90%", pin: true, scrub: 0.6 },
-              })
-              .to(vCard, { scale: 1.12, duration: 1 }, 0)
-              .to(dimEl, { opacity: 0.55, duration: 1 }, 0)
-              .to(contentEl, { yPercent: -12, autoAlpha: 0, duration: 0.5, ease: "power1.in" }, 0);
-            ScrollTrigger.refresh();
+            unlock();
+            // StoryScroll picks it up from here and morphs the video into the About image on scroll
+            html.dataset.intro = "done";
+            window.dispatchEvent(new Event("hero:intro-complete"));
           };
 
           // 4. The video tile opens to full bleed
           const expand = () => {
             expandTl = gsap
               .timeline({ onComplete: finish })
-              .to(vCard, { scale: 1, clipPath: crop(W), duration: 1.5, ease: "expo.inOut" }, 0)
+              .to(vCard, { scale: 1, clipPath: crop(W + OVERSCAN), duration: 1.5, ease: "expo.inOut" }, 0)
               .to(scrimEl, { opacity: 1, duration: 1.1, ease: "power2.out" }, 0.8)
               .call(() => {
                 html.dataset.loading = "false"; // brings the nav in
               }, undefined, 1.0)
               .to(lines, { yPercent: 0, duration: 1.4, stagger: 0.12, ease: "expo.out" }, 0.9)
-              .to(fades, { autoAlpha: 1, y: 0, duration: 1.1, stagger: 0.12, ease: "expo.out" }, 1.3);
+              .to(fades, { autoAlpha: 1, y: 0, duration: 1.1, stagger: 0.12, ease: "expo.out" }, 1.3)
+              .to(draws, { scaleX: 1, duration: 1.5, ease: "expo.inOut" }, 1.6);
           };
 
           const count = { v: 0 };
@@ -242,7 +248,7 @@ export function Hero() {
 
           return () => {
             killLate();
-            html.style.overflow = "";
+            unlock();
           };
         },
       );
@@ -251,8 +257,9 @@ export function Hero() {
     return () => {
       killLate();
       ctx.revert();
-      html.style.overflow = "";
+      unlock();
       html.dataset.loading = "false";
+      delete html.dataset.intro;
     };
   }, []);
 
@@ -264,26 +271,21 @@ export function Hero() {
       aria-labelledby="hero-title"
       className="hero relative h-[100dvh] min-h-[620px] overflow-hidden bg-stone"
     >
-      {/* Loader chrome, shown on the stone screen */}
-      <span
-        aria-hidden
-        className="hero-chrome absolute left-1/2 top-7 -translate-x-1/2 font-display text-[1.5rem] leading-none text-umber"
-      >
-        Hallam &amp; Wren
-      </span>
+      {/* Loader counter, big, on the stone screen */}
       <span
         ref={counter}
         aria-hidden
-        className="hero-chrome absolute left-1/2 top-[calc(50%+4.5rem)] -translate-x-1/2 font-display text-[clamp(1.25rem,1.7vw,1.75rem)] leading-none text-umber [font-variant-numeric:lining-nums_tabular-nums]"
+        className="hero-chrome absolute bottom-5 left-5 font-display text-[clamp(5.5rem,17vw,16rem)] leading-[0.8] text-umber [font-variant-numeric:lining-nums_tabular-nums] md:bottom-8 md:left-[5vw]"
       >
         000
       </span>
 
-      {/* Stage: the tile row (the last tile is the playing video), scrim and dim for legibility */}
-      <div aria-hidden className="absolute inset-0 isolate">
+      {/* Stage: the tile row (the last tile is the playing video). z-5 puts it above the About background and
+          below the About text, so the video card can travel between them. */}
+      <div aria-hidden className="absolute inset-0 isolate z-[5]">
         {TILES.map((tileItem, i) =>
           tileItem.kind === "video" ? (
-            <div key="video" className="g-card absolute left-1/2 top-1/2">
+            <div key="video" className="g-card absolute left-1/2 top-1/2" data-story="media">
               <video
                 ref={video}
                 muted
@@ -291,6 +293,19 @@ export function Hero() {
                 playsInline
                 preload="auto"
                 className="absolute inset-0 h-full w-full object-cover"
+              />
+              {/* The About photo, centred at exactly the crop the About slot uses, so the hand-off is pixel-exact */}
+              <div
+                data-story="media-image"
+                className="absolute left-1/2 top-0 h-full opacity-0"
+                style={{ aspectRatio: String(ABOUT_IMAGE_ASPECT), transform: "translateX(-50%)" }}
+              >
+                <Image src={ABOUT_IMAGE} alt="" fill unoptimized priority sizes="900px" className="object-cover" />
+              </div>
+              <div
+                ref={scrim}
+                data-story="scrim"
+                className="pointer-events-none absolute inset-0 bg-gradient-to-t from-umber/80 via-umber/20 to-umber/10"
               />
             </div>
           ) : (
@@ -309,22 +324,12 @@ export function Hero() {
             </div>
           ),
         )}
-        <div
-          ref={scrim}
-          className="pointer-events-none absolute inset-0 bg-gradient-to-t from-umber/80 via-umber/20 to-umber/10"
-          style={{ zIndex: 30 }}
-        />
-        <div
-          ref={dim}
-          className="pointer-events-none absolute inset-0 bg-umber opacity-0"
-          style={{ zIndex: 31 }}
-        />
       </div>
 
       {/* Hero copy */}
-      <div ref={content} className="absolute inset-0 z-10">
+      <div data-story="hero-copy" className="absolute inset-0 z-10">
         <div className="absolute inset-x-0 bottom-0 px-5 pb-[7dvh] md:px-[5vw] md:pb-[8dvh]">
-          <div className="grid items-end gap-7 md:grid-cols-[minmax(0,1fr)_minmax(0,25rem)] md:gap-10">
+          <div className="grid items-end gap-7 md:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] md:gap-10">
             <h1
               id="hero-title"
               className="font-display text-[clamp(2.9rem,7.6vw,9rem)] font-normal leading-[0.95] tracking-[-0.02em] text-plaster"
@@ -337,19 +342,35 @@ export function Hero() {
               </span>
             </h1>
 
-            <div>
-              <p className="hero-fade max-w-[38ch] text-balance text-[15px] leading-relaxed text-plaster/85 md:text-base">
-                A London studio designing and delivering private residences end to end. 140 homes
-                completed in 18 years.
+            {/* A quiet editorial block: one line of proof, one reason to act, one typographic call to action */}
+            <div className="md:pb-[0.4em]">
+              <p className="hero-fade max-w-[34ch] text-balance text-[15px] leading-relaxed text-plaster/85 md:text-base">
+                Eighteen years designing private residences in London, from first sketch to final handover.
+                Taking on four new homes for 2027.
               </p>
-              <div className="hero-fade mt-6 flex flex-wrap items-center gap-x-8 gap-y-3 md:mt-8">
-                <MagneticLink href="#contact" variant="light">
-                  Book a consultation
-                </MagneticLink>
-                <MagneticLink href="#projects" variant="quiet-light">
-                  View projects
-                </MagneticLink>
-              </div>
+              <a
+                href="#contact"
+                className="group mt-8 block focus-visible:outline-2 focus-visible:outline-offset-8 focus-visible:outline-plaster md:mt-10"
+              >
+                <span className="hero-fade flex items-end justify-between gap-6">
+                  <span className="font-display text-[clamp(1.55rem,2.15vw,2.3rem)] leading-none text-plaster">
+                    Book a consultation
+                  </span>
+                  <ArrowRight
+                    size={22}
+                    weight="light"
+                    aria-hidden
+                    className="mb-[0.1em] shrink-0 text-plaster transition-transform duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:translate-x-1.5"
+                  />
+                </span>
+                <span className="hero-fade relative mt-5 block h-px">
+                  <span aria-hidden className="hero-draw absolute inset-0 bg-plaster/35" />
+                  <span
+                    aria-hidden
+                    className="absolute inset-0 origin-left scale-x-0 bg-plaster transition-transform duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-x-100 group-focus-visible:scale-x-100"
+                  />
+                </span>
+              </a>
             </div>
           </div>
         </div>

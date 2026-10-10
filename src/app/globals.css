@@ -85,9 +85,10 @@ html.lenis body {
 }
 /* After the intro the video card stops being a transformed card and becomes a plain full-viewport layer */
 .g-card[data-final="true"] {
-  left: 0;
+  /* 2px overscan each side so sub-pixel rounding can never show a sliver of the page behind the video */
+  left: -2px;
   top: 0;
-  width: 100%;
+  width: calc(100% + 4px);
   height: 100%;
 }
 /* Pre-hydration: everything waits, so GSAP can take over without a flash */
@@ -120,6 +121,267 @@ html[data-loading="true"] .site-nav {
   }
 }
 
+/* The scrollbar track is always present, so the viewport width never changes when the loader locks and unlocks
+   scroll. (Hiding it made the hero 15px narrower than the screen and threw the video off centre.) */
 html {
-  scrollbar-gutter: stable; /* no layout jump when the loader locks and unlocks scroll */
+  overflow-y: scroll;
 }
+
+/*
+  Gallery. Default (no JavaScript, or reduced motion): a plain vertical stack, each project a 3:2 framed
+  photograph with its caption underneath. When GSAP sets data-motion="true" the same markup becomes one pinned
+  stage: a very large framed photograph that pans to reveal the whole room, caption row underneath, the next
+  photograph rising over the last.
+*/
+.gallery .gal-title {
+  padding: 22dvh 5vw 10dvh;
+}
+.gallery .gal-win {
+  position: relative;
+  display: grid;
+  gap: 2rem;
+  padding: 0 5vw 14dvh;
+}
+.gallery .gal-frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  overflow: hidden;
+  background: var(--ink);
+}
+/* The pan layer: in the plain stack it just fills the frame. In motion mode GSAP sizes it to a 3:2 box. */
+.gallery .gal-pan {
+  position: absolute;
+  inset: 0;
+}
+.gallery .gal-rule {
+  display: none;
+  opacity: 0;
+}
+
+.gallery[data-motion="true"] .gal-stage {
+  height: 100dvh;
+  overflow: hidden;
+}
+.gallery[data-motion="true"] .gal-title {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  text-align: center;
+  white-space: nowrap;
+}
+.gallery[data-motion="true"] .gal-win {
+  position: absolute;
+  inset: 0;
+  display: block;
+  padding: 0;
+}
+/* The frame: nearly the full width and about three quarters of the height, clear of the nav above */
+.gallery[data-motion="true"] .gal-frame {
+  position: absolute;
+  left: 3.5vw;
+  right: 3.5vw;
+  top: 10.5dvh;
+  bottom: 14dvh;
+  width: auto;
+  aspect-ratio: auto;
+}
+.gallery[data-motion="true"] .gal-pan {
+  inset: auto;
+  left: 0;
+  top: 0;
+}
+.gallery[data-motion="true"] .gal-copy {
+  position: absolute;
+  left: 3.5vw;
+  right: 3.5vw;
+  bottom: 0;
+  height: 14dvh;
+  padding-top: 2.4dvh;
+}
+.gallery[data-motion="true"] .gal-rule {
+  display: flex;
+}
+@media (max-width: 767px) {
+  .gallery[data-motion="true"] .gal-frame {
+    left: 20px;
+    right: 20px;
+    top: 11dvh;
+    bottom: 29dvh;
+  }
+  .gallery[data-motion="true"] .gal-copy {
+    left: 20px;
+    right: 20px;
+    height: 29dvh;
+    padding-top: 2dvh;
+  }
+  .gallery .gal-rule,
+  .gallery[data-motion="true"] .gal-rule {
+    display: none;
+  }
+}
+
+/* Scale rule ticks are transform-only */
+.gallery .gal-tick {
+  transform: scaleX(0.3);
+  transform-origin: right;
+  opacity: 0.45;
+  transition:
+    transform 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.gallery .gal-tick.is-active {
+  transform: scaleX(1);
+  opacity: 1;
+}
+
+
+/*
+  Process. Default (no JavaScript, or reduced motion): a plain static layout, words solid, finished photograph.
+  When GSAP sets data-motion="true" the same markup becomes one pinned stage: words and copy on the left,
+  one photograph on the right that moves through Draw, Design and Build as you scroll.
+*/
+.process .pro-stage {
+  display: grid;
+  gap: 3.5rem;
+  padding: 14dvh 5vw;
+}
+.process .pro-words {
+  font-size: clamp(3.5rem, 12vw, 8rem);
+}
+.process .pro-outline {
+  display: none;
+}
+.process .pro-copy-wrap {
+  display: grid;
+  gap: 1.2rem;
+  max-width: 30rem;
+  margin-top: 2rem;
+}
+.process .pro-copy {
+  margin: 0;
+}
+.process .pro-cta {
+  max-width: 26rem;
+  margin-top: 2.5rem;
+}
+.process .pro-frame {
+  position: relative;
+  width: 100%;
+  max-width: 30rem;
+  aspect-ratio: 4 / 5;
+}
+.process .pro-dims,
+.process .pro-chips,
+.process .pro-gray,
+.process .pro-veil {
+  display: none;
+}
+
+.process[data-motion="true"] .pro-stage {
+  height: 100dvh;
+  overflow: hidden;
+  align-items: center;
+  gap: 0;
+  padding: 0 5vw;
+}
+/* Outlined words: transparent fill with a hairline stroke. They fill solid as each step begins. */
+.process[data-motion="true"] .pro-outline {
+  display: block;
+  color: transparent;
+  -webkit-text-stroke: 1.5px rgb(43 39 35 / 0.5);
+}
+.process[data-motion="true"] .pro-dims,
+.process[data-motion="true"] .pro-gray,
+.process[data-motion="true"] .pro-veil {
+  display: block;
+}
+.process[data-motion="true"] .pro-chips {
+  display: flex;
+}
+.process[data-motion="true"] .pro-copy-wrap {
+  position: relative;
+  display: block;
+  height: 9.5rem;
+  margin-top: 3.5dvh;
+}
+.process[data-motion="true"] .pro-copy {
+  position: absolute;
+  left: 0;
+  top: 0;
+  max-width: 30rem;
+  opacity: 0;
+}
+.process[data-motion="true"] .pro-cta {
+  margin-top: 2dvh;
+  opacity: 0;
+  visibility: hidden;
+}
+@media (min-width: 768px) {
+  .process[data-motion="true"] .pro-stage {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+  }
+  .process[data-motion="true"] .pro-words {
+    font-size: clamp(4.2rem, 11vw, 12rem);
+  }
+  .process[data-motion="true"] .pro-left {
+    grid-column: 1 / span 6;
+  }
+  .process[data-motion="true"] .pro-right {
+    grid-column: 8 / span 5;
+    padding-top: 3dvh;
+  }
+  /* 4:5 portrait, as tall as the screen comfortably allows */
+  .process[data-motion="true"] .pro-frame {
+    height: 66dvh;
+    width: min(100%, 52.8dvh);
+    max-width: none;
+    aspect-ratio: auto;
+  }
+}
+@media (max-width: 767px) {
+  .process[data-motion="true"] .pro-stage {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1.5dvh;
+    padding: 12dvh 20px 3dvh;
+  }
+  .process[data-motion="true"] .pro-left {
+    display: contents;
+  }
+  .process[data-motion="true"] .pro-words {
+    order: 1;
+    display: flex;
+    gap: 1rem;
+    font-size: 2.3rem;
+  }
+  .process[data-motion="true"] .pro-right {
+    order: 2;
+    display: flex;
+    justify-content: center;
+    padding: 5dvh 0 7dvh;
+  }
+  .process[data-motion="true"] .pro-frame {
+    height: 34dvh;
+    width: 27.2dvh;
+    max-width: none;
+    aspect-ratio: auto;
+  }
+  .process[data-motion="true"] .pro-copy-wrap {
+    order: 3;
+    height: 7.5rem;
+    margin-top: 0;
+  }
+  .process[data-motion="true"] .pro-cta {
+    order: 4;
+    margin-top: 0;
+  }
+  .process[data-motion="true"] .pro-dim-left {
+    display: none;
+  }
+}
+

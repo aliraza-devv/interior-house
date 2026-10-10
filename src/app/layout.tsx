@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
-import { Geist } from "next/font/google";
-import localFont from "next/font/local";
+import { Bodoni_Moda, Geist } from "next/font/google";
 import { SmoothScroll } from "@/components/ui/SmoothScroll";
 import "./globals.css";
 
@@ -9,15 +8,17 @@ const geistSans = Geist({
   subsets: ["latin"],
 });
 
-// Display serif, chosen by the owner: Mollie Glaston. It has a single Regular weight and no italic, so never set
-// italics or font weights on display type. LICENSE: the 1001fonts download is free for personal use only.
-// A commercial site needs written permission from the author before launch.
-const display = localFont({
-  src: "../fonts/MollieGlaston-Regular.otf",
+// Display serif (luxury/editorial brief, so a serif is justified). Bodoni Moda is free (SIL OFL) with the same
+// high-contrast character as the owner's choice, Mollie Glaston, which is licensed for personal use only and
+// needs written permission for a commercial site. To switch back once licensed: put the font file in src/fonts/
+// and replace this block with
+//   const display = localFont({ src: "../fonts/MollieGlaston-Regular.otf", variable: "--font-display-src" });
+// Nothing else needs to change. Display type is set in the regular weight only, with no italics.
+const display = Bodoni_Moda({
   variable: "--font-display-src",
-  weight: "400",
-  style: "normal",
-  display: "swap",
+  subsets: ["latin"],
+  style: ["normal"],
+  axes: ["opsz"],
 });
 
 export const metadata: Metadata = {
