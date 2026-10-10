@@ -1,0 +1,125 @@
+@import "tailwindcss";
+
+/*
+  Palette: "Plaster & Umber". Warm, minimal, light-first.
+  Derived from the owner's three reference palettes (Luxe, smoky black / olive / bone, cacao / olive / clay / linen).
+  Rules: no pure black or white, ONE accent (bordeaux), mushroom is decoration only (fails text contrast).
+  Contrast on plaster: ink 13.1, olive 6.2, bordeaux 8.0. Dark-mode pairs are all 6.2+ against canvas.
+*/
+:root {
+  --plaster: #f4f1ea; /* page background */
+  --linen: #eae4d9; /* alternate sections, quiet surfaces */
+  --bone: #d8cfbf; /* hairlines, borders, hover fills */
+  --raised: #fbf9f4; /* inputs and raised panels, the "floral white" */
+  --mushroom: #a39685; /* icon strokes, disabled, decorative only */
+  --olive: #5c5a4d; /* secondary text */
+  --ink: #2b2723; /* primary text, primary button */
+  --stone: #c4beb1; /* loader screen, from the owner’s loader concept */
+  --bordeaux: #6e3a3e; /* the single accent: links, focus, markers */
+
+  --canvas: var(--plaster);
+  --surface: var(--linen);
+  --surface-raised: var(--raised);
+  --line: var(--bone);
+  --text: var(--ink);
+  --text-muted: var(--olive);
+  --accent: var(--bordeaux);
+  --on-ink: var(--plaster); /* text placed on ink or bordeaux fills */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --canvas: #1b1815;
+    --surface: #262220;
+    --surface-raised: #2f2a27;
+    --line: #3d3731;
+    --text: #ede7db;
+    --text-muted: #b5ab9a;
+    --accent: #c48a8c; /* bordeaux lifted for dark, 6.2 on canvas */
+    --on-ink: #1b1815;
+  }
+}
+
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-raised: var(--surface-raised);
+  --color-line: var(--line);
+  --color-ink: var(--text);
+  --color-muted: var(--text-muted);
+  --color-accent: var(--accent);
+  --color-on-ink: var(--on-ink);
+  --color-mushroom: var(--mushroom);
+  --color-stone: var(--stone);
+  --color-plaster: var(--plaster); /* constant light, for text on video */
+  --color-umber: var(--ink); /* constant dark, for scrims and light buttons */
+  --font-sans: var(--font-geist-sans);
+  --font-display: var(--font-display-src);
+}
+
+body {
+  background: var(--canvas);
+  color: var(--text);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--on-ink);
+}
+
+/* Lenis recommended base styles */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+
+/*
+  Hero = loader + video in one element. A row of tiles jumps like a loader, gathers, and the video tile opens to full bleed.
+*/
+.g-card {
+  will-change: transform;
+}
+/* After the intro the video card stops being a transformed card and becomes a plain full-viewport layer */
+.g-card[data-final="true"] {
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+}
+/* Pre-hydration: everything waits, so GSAP can take over without a flash */
+.hero[data-ready="false"] .g-card,
+.hero[data-ready="false"] .hero-chrome,
+.hero[data-ready="false"] .hero-fade {
+  opacity: 0;
+  visibility: hidden;
+}
+.hero[data-ready="false"] .hero-line > span {
+  transform: translateY(115%);
+}
+
+/* Nav arrives after the loader */
+.site-nav {
+  transition:
+    opacity 0.9s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.9s cubic-bezier(0.16, 1, 0.3, 1);
+}
+html[data-loading="true"] .site-nav {
+  opacity: 0;
+  transform: translateY(-14px);
+  pointer-events: none;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .glass {
+    backdrop-filter: none;
+    background: var(--canvas);
+  }
+}
+
+html {
+  scrollbar-gutter: stable; /* no layout jump when the loader locks and unlocks scroll */
+}
