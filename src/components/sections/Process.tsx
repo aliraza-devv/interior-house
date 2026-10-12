@@ -2,57 +2,73 @@
 
 import Image from "next/image";
 import { useLayoutEffect, useRef } from "react";
-import { LineCta } from "@/components/ui/LineCta";
+import { PlanDrawing } from "@/components/ui/PlanDrawing";
+import { clamp01, easeInOut, ramp, slats } from "@/lib/fluted";
 import { gsap } from "@/lib/gsap";
+import { PHOTOS, unsplash } from "@/lib/photos";
 
-// Placeholder photograph. The same room is shown in three states, so one strong portrait photograph is enough.
-const SRC =
-  "https://images.unsplash.com/photo-1606744837616-56c9a5c6a6eb?auto=format&fit=crop&w=1400&q=80";
-const ALT = "Pale stone staircase beside a tall plant and a green armchair";
+// Placeholder photograph: the room the plan describes, shown whole. Replace with a real project shot.
+const SRC = unsplash(PHOTOS.room.id, [3, 2]);
+const ALT = PHOTOS.room.alt;
 
+// Placeholder phases and durations. Each step is a complete 3:2 picture, and each is wider (so taller) than the last,
+// so the three stand on one baseline as a flight of stairs. "w" is the step's width share.
 const STEPS = [
   {
     word: "Draw",
-    copy: "We begin with a tape measure and a pencil. Plans are drawn and redrawn until every room works before it looks good.",
+    w: 24,
+    sheet: "01 Plan",
+    span: "Weeks 1 to 4",
+    copy: "We measure every wall, then draw the plan by hand until each room works before it looks good.",
   },
   {
     word: "Design",
+    w: 31,
+    sheet: "02 Scheme",
+    span: "Weeks 5 to 12",
     copy: "Materials, light and colour are chosen together on one board, so nothing is decided in isolation.",
   },
   {
     word: "Build",
-    copy: "Our own craftspeople fit every detail on site, with one lead accountable until the day we hand over.",
+    w: 38,
+    sheet: "03 Room",
+    span: "Weeks 13 to 38",
+    copy: "Our own craftspeople fit every detail on site, with one lead accountable until handover.",
   },
 ] as const;
 
-// Illustrative material swatches shown in the Design step
+// Illustrative material swatches shown on the Design step
 const SWATCHES = [
   { name: "Lime plaster", color: "#e4ddcf" },
   { name: "Smoked oak", color: "#5b4636" },
   { name: "Travertine", color: "#d2c3aa" },
   { name: "Moss linen", color: "#8a8870" },
-  { name: "Bronze", color: "#7a5c42" },
 ] as const;
 
-// Timeline: progress P runs 0 to 3 (one unit per step), then holds briefly on the finished room
-const TOTAL = 3.35;
-
-const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
-const ramp = (v: number, a: number, b: number) => clamp01((v - a) / (b - a));
+// Timeline units (one unit of scroll is 80% of a viewport height). Each step rises over REVEAL, one after another.
+// The first starts at once: the plan begins to draw the moment the section pins, so the stage is never blank.
+const STARTS = [0.05, 1.05, 2.05] as const;
+const REVEAL = 0.85;
+const TAIL = 0.45; // hold on the finished staircase
+const TOTAL = STARTS[2] + REVEAL + TAIL;
 
 /**
- * "One room, three states". The section pins, and one photograph moves through the whole process:
+ * "The staircase". A process is a sequence of steps, so the section is a flight of three steps. Each step is a
+ * complete picture of the same room in its own state, at a natural 3:2, wider and taller than the one before:
  *
- *   Draw    a grey, veiled print like tracing paper, with dimension lines and a scale bar
- *   Design  the photograph warms toward colour; the drawing marks give way to material swatches
- *   Build   the finished room in full colour
+ *   Draw    a floor plan of the room, drawn as an architect would (the lines draw themselves as the step rises)
+ *   Design  the room, with a plate of material swatches
+ *   Build   the finished room
  *
- * The three huge words start as outlines (only drawn) and fill solid as their step begins. A word that has
- * been built stays solid but steps back, and the one in progress steps forward.
+ * Each step is a drawing sheet (linen paper, a faint grid, a double border) that is on the page from the first
+ * frame, with its sheet number, so the stage never reads as empty or unloaded. The pictures then rise into their
+ * sheets one after another in the same fluted slat reveal used in Projects (the plan draws itself on its sheet
+ * instead). Each phase's word and description sit in the air above its step with a fine leader line down to the
+ * step's corner, and an architectural dimension string under each step gives its duration.
  *
- * Everything is driven by one render function from the scroll position. Only opacity and transform change
- * (the grey state is a second, statically filtered copy of the photograph that fades out, so there is no
- * animated filter). Without JavaScript or with reduced motion the section is a plain static layout.
+ * On a phone there is no room for a staircase, so the three sheets stack in one frame and rise over each other.
+ * One render function reads the scroll position and sets every style. Only transform, opacity and clip-path change
+ * (plus the drawing's stroke offset). Without JavaScript or with reduced motion the section is a plain list.
  */
 export function Process() {
   const root = useRef<HTMLElement>(null);
@@ -65,55 +81,82 @@ export function Process() {
       const mm = gsap.matchMedia();
 
       mm.add("(prefers-reduced-motion: no-preference)", () => {
-        const q = <T extends HTMLElement>(sel: string) => section.querySelector<T>(sel);
-        const words = gsap.utils.toArray<HTMLElement>(".pro-word", section).map((el) => ({
-          el,
-          outline: el.querySelector<HTMLElement>(".pro-outline"),
-          solid: el.querySelector<HTMLElement>(".pro-solid"),
+        const steps = gsap.utils.toArray<HTMLElement>(".pro-step", section).map((el) => ({
+          block: el.querySelector<HTMLElement>(".pro-block"),
+          fill: el.querySelector<HTMLElement>(".pro-fill"),
+          img: el.querySelector<HTMLElement>(".pro-img"),
+          plan: el.querySelector<SVGElement>(".pro-plan"),
+          word: el.querySelector<HTMLElement>(".pro-word"),
+          desc: el.querySelector<HTMLElement>(".pro-desc"),
+          leader: el.querySelector<HTMLElement>(".pro-leader"),
+          span: el.querySelector<HTMLElement>(".pro-span"),
         }));
-        const copies = gsap.utils.toArray<HTMLElement>(".pro-copy", section);
-        const dims = q(".pro-dims");
-        const chips = q(".pro-chips");
-        const cta = q(".pro-cta");
-        const gray = q(".pro-gray");
-        const veil = q(".pro-veil");
-        const img = q(".pro-img");
-        if (!dims || !chips || !cta || !gray || !veil || !img || words.some((w) => !w.outline || !w.solid)) return;
+        const mdescs = gsap.utils.toArray<HTMLElement>(".pro-mdesc", section);
+        if (
+          steps.length !== 3 ||
+          steps.some((s) => !s.block || !s.fill || !s.img || !s.word || !s.desc || !s.leader || !s.span) ||
+          !steps[0].plan
+        ) {
+          return;
+        }
 
-        section.dataset.motion = "true"; // switches the CSS from a static layout to the pinned stage
+        section.dataset.motion = "true"; // switches the CSS from a plain list to the pinned staircase
 
         const render = (t: number) => {
-          const P = Math.min(t, 3);
+          const stacked = window.innerWidth < 768;
+          const n = stacked ? 4 : 6; // slats per step
 
-          // Words: outline until their step begins, then solid; the one in progress steps forward
-          words.forEach(({ el, outline, solid }, i) => {
-            if (!outline || !solid) return;
-            const done = ramp(P, i, i + 0.35);
-            const past = ramp(P, i + 1, i + 1.35);
-            outline.style.opacity = String(1 - done);
-            solid.style.opacity = String(done * (1 - 0.55 * past));
-            el.style.transform = `translate3d(${(done * (1 - past) * 22).toFixed(2)}px, 0, 0)`;
+          steps.forEach(({ block, fill, img, plan, word, desc, leader, span }, i) => {
+            if (!block || !fill || !img || !word || !desc || !leader || !span) return;
+            const p = clamp01((t - STARTS[i]) / REVEAL);
+
+            // What rises in slats. On the staircase it is the picture inside its sheet, so the empty sheet stays
+            // on the page. On a phone the three sheets are stacked in one frame, so the whole sheet rises over the
+            // one below. The other element carries no reveal styles. The plan (step one) is not revealed in slats:
+            // it draws itself on its sheet.
+            const rising = stacked ? block : fill;
+            const idle = stacked ? fill : block;
+            idle.style.clipPath = "";
+            idle.style.visibility = "";
+            if (i === 0) {
+              rising.style.clipPath = "";
+              rising.style.visibility = "visible";
+            } else if (p <= 0) {
+              rising.style.clipPath = "";
+              rising.style.visibility = "hidden";
+            } else {
+              rising.style.visibility = "visible";
+              rising.style.clipPath = p >= 1 ? "none" : slats(p, n, rising.clientWidth, rising.clientHeight);
+            }
+            block.dataset.empty = p <= 0 ? "true" : "false"; // shows the sheet's caption while it waits
+            img.style.transform = `scale(${(1.05 - 0.05 * easeInOut(p)).toFixed(4)})`;
+
+            // The plan draws itself as the step rises: walls fade in, lines draw on, labels arrive last
+            if (i === 0 && plan) {
+              plan.style.setProperty("--pw", ramp(p, 0.05, 0.4).toFixed(3));
+              plan.style.setProperty("--d", (1 - ramp(p, 0.1, 0.85)).toFixed(3));
+              plan.style.setProperty("--pt", ramp(p, 0.6, 1).toFixed(3));
+            }
+
+            // The duration string under the step: present from the start, it firms up when the step is done
+            span.style.opacity = String((0.55 + 0.45 * ramp(p, 0.6, 1)).toFixed(3));
+
+            // The annotation: the word firms up as its step starts, the leader is drawn to the sheet, and the
+            // description is shown only while this is the active step
+            word.style.opacity = String((0.45 + 0.55 * ramp(t, STARTS[i] - 0.1, STARTS[i] + 0.3)).toFixed(3));
+            leader.style.transform = `scaleY(${(0.5 + 0.5 * ramp(t, STARTS[i] - 0.1, STARTS[i] + 0.5)).toFixed(3)})`;
+            const inA = ramp(t, STARTS[i] + 0.25, STARTS[i] + 0.6);
+            const outA = i < steps.length - 1 ? ramp(t, STARTS[i + 1], STARTS[i + 1] + 0.4) : 0;
+            const a = inA * (1 - outA);
+            const dy = ((1 - inA) * 14 - outA * 10).toFixed(2);
+            desc.style.opacity = String(a.toFixed(3));
+            desc.style.transform = `translateY(${dy}px)`;
+            const md = mdescs[i];
+            if (md) {
+              md.style.opacity = String(a.toFixed(3));
+              md.style.transform = `translateY(${dy}px)`;
+            }
           });
-
-          // Copy: crossfades, one sentence per step
-          copies.forEach((c, i) => {
-            const inA = ramp(P, i + 0.15, i + 0.4);
-            const outA = i < copies.length - 1 ? ramp(P, i + 0.8, i + 1.0) : 0;
-            c.style.opacity = String(inA * (1 - outA));
-            c.style.transform = `translateY(${((1 - inA) * 18 - outA * 12).toFixed(2)}px)`;
-          });
-
-          // The drawing marks leave, the swatches come and go, the call to action arrives with the finished room
-          dims.style.opacity = String(1 - ramp(P, 0.7, 1.1));
-          chips.style.opacity = String(ramp(P, 0.9, 1.25) * (1 - ramp(P, 1.8, 2.1)));
-          const ctaA = ramp(P, 2.1, 2.5);
-          cta.style.opacity = String(ctaA);
-          cta.style.visibility = ctaA > 0.01 ? "visible" : "hidden";
-
-          // The photograph: grey and veiled (Draw), partly warmed (Design), full colour (Build)
-          gray.style.opacity = String(P < 1.25 ? 1 - 0.6 * ramp(P, 0.7, 1.25) : 0.4 * (1 - ramp(P, 1.7, 2.2)));
-          veil.style.opacity = String(0.35 * (1 - ramp(P, 0.5, 1.1)));
-          img.style.transform = `scale(${(1.05 - 0.05 * ramp(P, 0, 2.2)).toFixed(4)})`;
         };
 
         const proxy = { t: 0 };
@@ -126,32 +169,37 @@ export function Process() {
           scrollTrigger: {
             trigger: section,
             start: "top top",
-            end: () => `+=${TOTAL * 0.85 * window.innerHeight}`,
+            end: () => `+=${TOTAL * 0.8 * window.innerHeight}`,
             pin: true,
             scrub: 0.9,
             anticipatePin: 1,
             invalidateOnRefresh: true,
+            onRefreshInit: () => render(proxy.t),
           },
         });
 
         return () => {
           section.dataset.motion = "false";
           // These styles were written directly, so they are cleared directly
-          const els: (HTMLElement | null)[] = [
-            ...words.flatMap((w) => [w.el, w.outline, w.solid]),
-            ...copies,
-            dims,
-            chips,
-            cta,
-            gray,
-            veil,
-            img,
-          ];
-          els.forEach((el) => {
-            if (!el) return;
+          steps.forEach(({ block, fill, img, plan, word, desc, leader, span }) => {
+            [block, fill].forEach((el) => {
+              if (el) {
+                el.style.visibility = "";
+                el.style.clipPath = "";
+              }
+            });
+            if (block) delete block.dataset.empty;
+            [img, word, desc, leader, span].forEach((el) => {
+              if (el) {
+                el.style.opacity = "";
+                el.style.transform = "";
+              }
+            });
+            if (plan) ["--pw", "--d", "--pt"].forEach((v) => plan.style.removeProperty(v));
+          });
+          mdescs.forEach((el) => {
             el.style.opacity = "";
             el.style.transform = "";
-            el.style.visibility = "";
           });
         };
       });
@@ -173,97 +221,81 @@ export function Process() {
           Our process
         </h2>
 
-        <div className="pro-left">
-          {/* The three words: outlined while they are only drawn, solid once built */}
-          <ol className="pro-words m-0 list-none p-0">
-            {STEPS.map((s) => (
-              <li key={s.word} className="pro-word relative font-display leading-[0.9] tracking-[-0.025em]">
-                <span aria-hidden className="pro-outline absolute left-0 top-0">
-                  {s.word}
+        <p className="pro-intro font-display">About nine months, from first measure to handover.</p>
+
+        {/* The staircase: three complete pictures, each wider and taller than the last, on one baseline */}
+        <div className="pro-stairs">
+          {STEPS.map((s, i) => (
+            <div key={s.word} className="pro-step" style={{ ["--w" as string]: s.w, ["--i" as string]: i }}>
+              {/* The annotation, in the air above the step */}
+              <div className="pro-label">
+                <strong className="pro-word font-display">{s.word}</strong>
+                <p className="pro-desc">
+                  <span className="pro-copy">{s.copy}</span>
+                </p>
+                <span aria-hidden className="pro-leader" />
+              </div>
+
+              <figure className="pro-block m-0">
+                {/* The empty sheet's caption, shown only while the step waits for its turn */}
+                <span aria-hidden className="pro-sheet">
+                  {s.sheet}
                 </span>
-                <span className="pro-solid block">{s.word}</span>
-              </li>
-            ))}
-          </ol>
 
-          <div className="pro-copy-wrap">
-            {STEPS.map((s) => (
-              <p key={s.word} className="pro-copy text-[clamp(1.05rem,1.35vw,1.4rem)] leading-[1.45] text-umber">
-                {s.copy}
-              </p>
-            ))}
-          </div>
+                {/* What rises into the sheet */}
+                <div className="pro-fill absolute inset-0">
+                  <div className="pro-img absolute inset-0">
+                    {i === 0 ? (
+                      <PlanDrawing />
+                    ) : (
+                      <Image
+                        src={SRC}
+                        alt={i === 2 ? ALT : ""}
+                        fill
+                        fetchPriority="low"
+                        sizes="(min-width: 768px) 38vw, 100vw"
+                        className="object-cover"
+                      />
+                    )}
+                  </div>
+                  {i === 1 ? <div aria-hidden className="absolute inset-0 bg-plaster/10" /> : null}
 
-          <div className="pro-cta">
-            <LineCta href="#contact" tone="umber">
-              Book a consultation
-            </LineCta>
-          </div>
+                  {/* Design: a plate of material swatches */}
+                  {i === 1 ? (
+                    <ul
+                      aria-hidden
+                      className="pro-chips pointer-events-none absolute bottom-4 left-4 m-0 flex list-none gap-2 bg-plaster p-2.5"
+                    >
+                      {SWATCHES.map((sw) => (
+                        <li key={sw.name} className="w-16">
+                          <span className="block aspect-square w-full" style={{ backgroundColor: sw.color }} />
+                          <span className="mt-1 block text-xs leading-tight text-umber/80">{sw.name}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+              </figure>
+
+              {/* An architectural dimension string under the step, giving its duration */}
+              <div aria-hidden className="pro-span">
+                <span className="pro-span-line" />
+                <span className="pro-span-tick pro-span-tick-l" />
+                <span className="pro-span-tick pro-span-tick-r" />
+                <span className="pro-span-label">{s.span}</span>
+              </div>
+            </div>
+          ))}
         </div>
 
-        <div className="pro-right">
-          <figure className="pro-frame m-0">
-            <div className="pro-img absolute inset-0 overflow-hidden">
-              <Image src={SRC} alt={ALT} fill unoptimized sizes="40vw" className="object-cover" />
-              {/* Draw: the same photograph, grey and high contrast, under a veil of plaster like tracing paper */}
-              <div aria-hidden className="pro-gray absolute inset-0">
-                <Image
-                  src={SRC}
-                  alt=""
-                  fill
-                  unoptimized
-                  sizes="40vw"
-                  className="object-cover brightness-110 contrast-125 grayscale"
-                />
-              </div>
-              <div aria-hidden className="pro-veil absolute inset-0 bg-plaster opacity-0" />
-            </div>
-
-            {/* Drawing marks: dimension lines and a scale bar, shown in the Draw step */}
-            <div aria-hidden className="pro-dims pointer-events-none">
-              <div className="pro-dim-top absolute left-0 right-0 -top-9 h-5">
-                <span className="absolute left-0 right-0 top-1/2 h-px bg-umber/45" />
-                <span className="absolute left-0 top-0 h-full w-px bg-umber/60" />
-                <span className="absolute right-0 top-0 h-full w-px bg-umber/60" />
-                <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-plaster px-3 text-[11px] tracking-[0.14em] text-umber/80 [font-variant-numeric:tabular-nums]">
-                  3,850
-                </span>
-              </div>
-              <div className="pro-dim-left absolute -left-9 bottom-0 top-0 w-5">
-                <span className="absolute bottom-0 left-1/2 top-0 w-px bg-umber/45" />
-                <span className="absolute left-0 top-0 h-px w-full bg-umber/60" />
-                <span className="absolute bottom-0 left-0 h-px w-full bg-umber/60" />
-                <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-plaster py-2 text-[11px] tracking-[0.14em] text-umber/80 [font-variant-numeric:tabular-nums]">
-                  4,900
-                </span>
-              </div>
-              <div className="pro-scale absolute left-0 top-[calc(100%+1.1rem)] w-44">
-                <div className="relative h-3 border-b border-umber/60">
-                  {[0, 25, 50, 75, 100].map((p) => (
-                    <span key={p} className="absolute bottom-0 h-2 w-px bg-umber/60" style={{ left: `${p}%` }} />
-                  ))}
-                </div>
-                <div className="mt-1.5 flex justify-between text-[11px] tracking-[0.1em] text-umber/80 [font-variant-numeric:tabular-nums]">
-                  <span>0</span>
-                  <span>1</span>
-                  <span>2 m</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Material swatches, shown in the Design step */}
-            <ul
-              aria-hidden
-              className="pro-chips pointer-events-none absolute left-0 right-0 top-[calc(100%+1.1rem)] m-0 flex list-none gap-3 p-0 opacity-0"
-            >
-              {SWATCHES.map((s) => (
-                <li key={s.name} className="min-w-0 flex-1">
-                  <span className="block aspect-square w-full" style={{ backgroundColor: s.color }} />
-                  <span className="mt-1.5 block truncate text-[11px] leading-tight text-umber/80">{s.name}</span>
-                </li>
-              ))}
-            </ul>
-          </figure>
+        {/* On a phone the descriptions are shown together underneath the frame */}
+        <div aria-hidden className="pro-mdescs">
+          {STEPS.map((s) => (
+            <p key={s.word} className="pro-mdesc">
+              <span className="pro-copy">{s.copy}</span>
+              <span className="pro-dur">{s.span}</span>
+            </p>
+          ))}
         </div>
       </div>
     </section>

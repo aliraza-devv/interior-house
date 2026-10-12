@@ -62,18 +62,18 @@ export function MagneticLink({ href, children, variant = "primary", className = 
       <a
         ref={ref}
         href={href}
-        className={`group relative inline-flex items-center py-2 text-sm tracking-[0.01em] transition-colors duration-300 ${FOCUS} ${
+        className={`group relative -my-1 inline-flex min-h-11 items-center py-2 text-sm tracking-[0.01em] transition-colors duration-300 ${FOCUS} ${
           onVideo ? "text-plaster" : onStone ? "text-umber" : "text-ink hover:text-accent"
         } ${className}`}
       >
         {children}
         <span
           aria-hidden
-          className={`absolute inset-x-0 bottom-1 h-px origin-left transition-colors duration-300 ${
+          className={`absolute inset-x-0 bottom-2 h-px origin-left transition-colors duration-300 ${
             onVideo
               ? "bg-plaster/45 group-hover:bg-plaster"
               : onStone
-                ? "bg-umber/35 group-hover:bg-umber"
+                ? "bg-umber/30 group-hover:bg-umber"
                 : "bg-line group-hover:bg-accent"
           }`}
         />
@@ -87,13 +87,13 @@ export function MagneticLink({ href, children, variant = "primary", className = 
     <a
       ref={ref}
       href={href}
-      className={`group inline-flex h-12 items-center gap-4 rounded-full py-1 pl-6 pr-1 text-sm tracking-[0.01em] transition-[background-color,color,scale] duration-300 hover:bg-accent hover:text-on-ink active:scale-[0.97] ${FOCUS} ${
+      className={`group inline-flex h-12 items-center gap-4 py-1 pl-6 pr-1 text-sm tracking-[0.01em] transition-[background-color,color,scale] duration-300 hover:bg-accent hover:text-on-ink active:scale-[0.97] ${FOCUS} ${
         onVideo ? "bg-plaster text-umber" : onStone ? "bg-umber text-plaster" : "bg-ink text-on-ink"
       } ${className}`}
     >
       {children}
       <span
-        className={`grid size-10 place-items-center rounded-full transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:translate-x-0.5 ${
+        className={`grid size-10 place-items-center transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:translate-x-0.5 ${
           onVideo ? "bg-umber text-plaster" : onStone ? "bg-plaster text-umber" : "bg-canvas text-ink"
         }`}
       >

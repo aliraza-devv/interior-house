@@ -34,7 +34,7 @@ export function LineCta({ href, children, tone = "plaster" }: Props) {
         />
       </span>
       <span className="relative mt-5 block h-px">
-        <span aria-hidden className={`absolute inset-0 ${umber ? "bg-umber/35" : "bg-plaster/35"}`} />
+        <span aria-hidden className={`absolute inset-0 ${umber ? "bg-umber/30" : "bg-plaster/35"}`} />
         <span
           aria-hidden
           className={`absolute inset-0 origin-left scale-x-0 transition-transform duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-x-100 group-focus-visible:scale-x-100 ${

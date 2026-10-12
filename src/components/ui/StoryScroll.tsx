@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { gsap, ScrollTrigger } from "@/lib/gsap";
+import { motionPaused } from "@/lib/motion";
 
 // Must match the overscan on the hero video, so the hand-over from hero to this layer is invisible
 const OVERSCAN = 4;
@@ -42,6 +43,7 @@ function setup(): (() => void) | undefined {
   const words = all<HTMLElement>('[data-story="word"]');
   const stats = all<HTMLElement>('[data-story="stat"]');
   const counts = all<HTMLElement>('[data-story="count"]');
+  const fades = all<HTMLElement>('[data-story="fade"]'); // caption, supporting line, people, recognition
   const paragraph = words[0]?.closest("p") ?? null;
 
   const ease = gsap.parseEase("power2.inOut");
@@ -96,7 +98,7 @@ function setup(): (() => void) | undefined {
       media.style.visibility = done ? "hidden" : "visible";
       slotImg.style.opacity = done ? "1" : "0";
       if (done) video.pause();
-      else void video.play().catch(() => {});
+      else if (!motionPaused()) void video.play().catch(() => {});
     }
   };
 
@@ -117,6 +119,7 @@ function setup(): (() => void) | undefined {
     gsap.set(words, { yPercent: 110 });
     gsap.set(rule, { scaleX: 0 });
     gsap.set(stats, { autoAlpha: 0, y: 28 });
+    gsap.set(fades, { opacity: 0, y: 22 }); // opacity only: the links inside stay reachable by keyboard
     counts.forEach((el) => {
       el.textContent = `0${el.dataset.suffix ?? ""}`;
     });
@@ -164,6 +167,16 @@ function setup(): (() => void) | undefined {
       });
     }
 
+    // The quieter blocks (photograph caption, supporting line, people, recognition) simply rise in as they arrive,
+    // those that arrive together one after another
+    ScrollTrigger.batch(fades, {
+      start: "top 90%",
+      once: true,
+      onEnter: (batch) => {
+        gsap.to(batch, { opacity: 1, y: 0, duration: 1.1, ease: "expo.out", stagger: 0.1 });
+      },
+    });
+
     // Stats: hairline draws, figures rise and count up
     ScrollTrigger.create({
       trigger: rule,
@@ -201,7 +214,7 @@ function setup(): (() => void) | undefined {
     counts.forEach((el) => {
       el.textContent = `${el.dataset.to ?? ""}${el.dataset.suffix ?? ""}`;
     });
-    void video.play().catch(() => {});
+    if (!motionPaused()) void video.play().catch(() => {});
   };
 }
 

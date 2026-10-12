@@ -3,71 +3,20 @@
 import Image from "next/image";
 import { useLayoutEffect, useRef } from "react";
 import { MagneticLink } from "@/components/ui/MagneticLink";
+import { easeInOut, ramp, slats, clamp01 } from "@/lib/fluted";
 import { gsap } from "@/lib/gsap";
+import { unsplash } from "@/lib/photos";
+import { PROJECTS } from "@/lib/projects";
 
-const photo = (id: string) =>
-  `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=2600&q=78`;
-
-// Placeholder projects and photography. Replace with the studio's own work.
-const PROJECTS = [
-  {
-    name: "Highgate House",
-    place: "Highgate, London",
-    kind: "Full interior",
-    year: "2024",
-    id: "1600210491892-03d54c0aaf87",
-    alt: "Sunlit living room with arched windows, exposed beams and a stone fireplace",
-  },
-  {
-    name: "Cadogan Flat",
-    place: "Chelsea, London",
-    kind: "Apartment",
-    year: "2024",
-    id: "1552558636-f6a8f071c2b3",
-    alt: "Bedroom with a raw concrete wall and soft linen bedding",
-  },
-  {
-    name: "Kew Green House",
-    place: "Richmond, London",
-    kind: "Kitchen and dining",
-    year: "2022",
-    id: "1610177534644-34d881503b83",
-    alt: "Kitchen with warm timber cabinetry and a dark stone island",
-  },
-] as const;
+// Cropped to the 3:2 the pan layer is, on the image host, so no pixel is sent that is never shown
+const photo = (id: string) => unsplash(id, [3, 2]);
 
 // Timeline units. One unit of scroll is 80% of a viewport height.
-const T0 = 0.5; // the title holds still for this long
-const REVEAL = 1; // one photograph rising in
-const GAP = 1.25; // start-to-start between photographs (so each one rests for 0.25)
-const TAIL = 0.9; // after the last photograph lands, hold for the button
-const SPREAD = 0.55; // how far the centre slats lead the outer slats (0 = all together)
-const SLAT_GAP = 3; // px between slats while they are rising; closes to 0 as each lands
+const T0 = 0.35; // the title holds still for this long
+const REVEAL = 0.85; // one photograph rising in
+const GAP = 1; // start-to-start between photographs (so each one rests for 0.15)
+const TAIL = 0.55; // after the last photograph lands, hold for the button
 const PHOTO_ASPECT = 1.5; // width / height of the photographs (3:2), used to size the pan layer
-
-const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
-const ramp = (v: number, a: number, b: number) => clamp01((v - a) / (b - a));
-const easeInOut = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
-
-/**
- * The fluted reveal. The photo is clipped to a row of vertical slats (one clip-path with n rectangles), each
- * rising from the bottom edge. Slats nearest the centre start first, so the leading edge forms a soft arch.
- */
-function slats(p: number, n: number, W: number, H: number): string {
-  const sw = W / n;
-  let d = "";
-  for (let i = 0; i < n; i++) {
-    const dist = Math.abs(i - (n - 1) / 2) / ((n - 1) / 2); // 0 at the centre, 1 at the outer slats
-    const e = easeInOut(clamp01((p - dist * SPREAD) / (1 - SPREAD)));
-    if (e <= 0) continue;
-    const h = H * e;
-    const gap = SLAT_GAP * (1 - e);
-    const x = i * sw + gap / 2;
-    const w = sw - gap + 0.5; // +0.5 so neighbouring slats overlap and no seam shows when they meet
-    d += `M${x.toFixed(2)} ${(H - h).toFixed(2)}h${w.toFixed(2)}v${h.toFixed(2)}h${(-w).toFixed(2)}z`;
-  }
-  return d ? `path("${d}")` : "inset(100% 0 0 0)";
-}
 
 /**
  * "Fluted". Reeded timber panelling is a signature of luxury interiors, so each project is revealed the way a
@@ -258,7 +207,7 @@ export function Gallery() {
       <div className="gal-stage relative isolate">
         <h2
           id="projects-title"
-          className="gal-title font-display text-[clamp(5rem,21vw,24rem)] font-normal leading-[0.9] tracking-[-0.03em] text-umber"
+          className="gal-title font-display text-[clamp(5rem,21vw,24rem)] font-normal leading-[0.9] text-umber"
         >
           Projects
         </h2>
@@ -274,9 +223,7 @@ export function Gallery() {
                       src={photo(p.id)}
                       alt={p.alt}
                       fill
-                      unoptimized
-                      loading="eager" // the photos are stacked in one spot, so lazy loading would only delay them
-                      fetchPriority="low" // but they must not compete with the hero video and loader
+                      fetchPriority="low" // below the fold: it must never compete with the hero film and the loader
                       sizes="95vw"
                       className="object-cover"
                     />
@@ -287,10 +234,10 @@ export function Gallery() {
 
               {/* One-row caption under the photograph: name, details, and on the last project the button */}
               <div className="gal-copy grid items-start gap-y-3 text-umber md:grid-cols-12 md:gap-x-0">
-                <h3 className="font-display text-[clamp(2.2rem,4.6vw,5.75rem)] font-normal leading-[0.95] tracking-[-0.02em] md:col-span-6">
+                <h3 className="font-display text-[clamp(2.2rem,4.6vw,5.75rem)] font-normal leading-[0.95] md:col-span-6">
                   {p.name}
                 </h3>
-                <p className="text-[14px] leading-snug text-umber/85 md:col-span-3 md:col-start-7 md:pt-[0.7em] md:text-[15px]">
+                <p className="text-[14px] leading-snug text-umber/80 md:col-span-3 md:col-start-7 md:pt-[0.7em] md:text-[15px]">
                   <span className="block">{p.place}</span>
                   <span className="block">
                     {p.kind}, {p.year}
