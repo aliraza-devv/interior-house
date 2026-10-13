@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Bodoni_Moda, Geist } from "next/font/google";
+import { HideDevBadge } from "@/components/ui/HideDevBadge";
 import { SmoothScroll } from "@/components/ui/SmoothScroll";
 import "./globals.css";
 
@@ -53,6 +54,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <a href="#main" className="skip-link">
           Skip to content
         </a>
+        {/* Localhost only: keeps Next's dev badge and its "Issue" pill out of the corner. Not rendered on the live site. */}
+        {process.env.NODE_ENV === "development" ? <HideDevBadge /> : null}
         <SmoothScroll>{children}</SmoothScroll>
       </body>
     </html>

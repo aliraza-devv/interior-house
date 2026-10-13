@@ -3,6 +3,9 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
+  // No Next.js badge (and its issue count) in the corner of the page on localhost. It only exists in development, so
+  // the live site is not affected. Errors that stop the page from rendering still show as the usual error screen.
+  devIndicators: false,
   images: {
     // Placeholder photography, hotlinked from Unsplash's own image CDN, which already resizes and encodes. This loader
     // asks it for the width each screen needs, so every image gets a real srcset instead of one oversized file.
