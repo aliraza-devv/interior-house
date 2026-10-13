@@ -45,7 +45,7 @@ const EXPAND_LEN = 1.25; // the film opens to full bleed; scroll is released the
 /**
  * Loader and hero are ONE piece, so the handoff is seamless.
  *
- * 1. A straight row of small square tiles (seven photos, then the playing video) fades in on a stone screen.
+ * 1. A straight row of small square tiles (seven photos, then the playing video) fades in on a wall of lit plaster.
  * 2. Like a loader, the tiles jump one after another, left to right, while the counter climbs to 100.
  * 3. At 100 the row settles back into a straight line, then slides together into one stack. The video tile
  *    is last in the row and on top of the stack.
@@ -134,15 +134,17 @@ export function Hero() {
           const fades = gsap.utils.toArray<HTMLElement>(".hero-fade", section);
           const draws = gsap.utils.toArray<HTMLElement>(".hero-draw", section);
           const imgs = gsap.utils.toArray<HTMLElement>(".g-img", section);
-          const flutesWrap = section.querySelector<HTMLElement>(".hero-flutes");
-          const flutes = gsap.utils.toArray<HTMLElement>(".flute", section);
-          const glints = gsap.utils.toArray<HTMLElement>(".flute i", section);
+          const wall = section.querySelector<HTMLElement>(".hero-wall");
+          const shade = section.querySelector<HTMLElement>(".wall-shade");
+          const glow = section.querySelector<HTMLElement>(".wall-glow");
+          const relief = section.querySelector<HTMLElement>(".wall-relief");
+          const shadow = section.querySelector<HTMLElement>(".g-shadow");
 
           const calm = Boolean(c.conditions?.reduce) || motionPaused();
 
           // No intro: reduced motion, a paused page, or a link to a section. The hero is simply there, full bleed.
           if (calm || target) {
-            gsap.set(flutesWrap, { autoAlpha: 0 });
+            gsap.set(wall, { autoAlpha: 0 });
             tiles.forEach((el, i) => {
               if (i === VIDEO_INDEX) el.dataset.final = "true";
               else gsap.set(el, { autoAlpha: 0 });
@@ -183,11 +185,12 @@ export function Hero() {
           const small = W < 768;
 
           // Square tile size and spacing. On phones the row must still fit with a margin.
-          const tile = small ? 36 : Math.min(64, Math.max(40, W * 0.036));
+          const tile = small ? 36 : Math.min(76, Math.max(44, W * 0.05));
           const gap = small ? 6 : Math.round(tile * 0.4);
           const pitch = tile + gap;
           const jump = tile * 1.5; // how high a tile leaps
           const xAt = (i: number) => (i - (TILES.length - 1) / 2) * pitch; // row is centred on the screen
+          const rowW = TILES.length * tile + (TILES.length - 1) * gap;
 
           // The video tile is a viewport-sized element (at least as wide as tall) scaled down to the tile
           // and clipped to a square, so no part of it is ever stretched.
@@ -212,6 +215,8 @@ export function Hero() {
               zIndex: isV ? 20 : i + 1,
             });
           });
+          // The shadow sits under the row, a little narrower than it, and fades in with the tiles
+          gsap.set(shadow, { xPercent: -50, yPercent: -50, y: tile * 0.82, width: rowW * 0.96, height: tile * 0.5, autoAlpha: 0 });
           gsap.set(chrome, { autoAlpha: 0, y: 12 });
           gsap.set(lines, { yPercent: 115 });
           gsap.set(fades, { autoAlpha: 0, y: 22 });
@@ -240,7 +245,7 @@ export function Hero() {
               if (i !== VIDEO_INDEX) gsap.set(el, { autoAlpha: 0 });
             });
             gsap.set(vCard, { clearProps: "all" });
-            gsap.set(flutesWrap, { autoAlpha: 0 }); // the video covers the screen by now
+            gsap.set([wall, shadow], { autoAlpha: 0 }); // the video covers the screen by now
             vCard.dataset.final = "true";
             unlock();
             // StoryScroll picks it up from here and morphs the video into the About image on scroll
@@ -252,7 +257,15 @@ export function Hero() {
           const expand = () => {
             expandTl = gsap
               .timeline()
-              .to(vCard, { scale: 1, clipPath: crop(W + OVERSCAN), duration: EXPAND_LEN, ease: "expo.inOut" }, 0)
+              // Both clips are written out in full. A plain .to() reads the start back from the browser, which reports
+              // equal sides as the two-value shorthand "inset(0px 272px)"; GSAP pairs that with the four-value end
+              // by position, so the left inset snaps to 0 on the first frame and the film opens on its left side first.
+              .fromTo(
+                vCard,
+                { scale: tile / H, clipPath: crop(H) },
+                { scale: 1, clipPath: crop(W + OVERSCAN), duration: EXPAND_LEN, ease: "expo.inOut", immediateRender: false },
+                0,
+              )
               .call(finish, undefined, EXPAND_LEN)
               .to(scrimEl, { opacity: 1, duration: 0.9, ease: "power2.out" }, 0.65)
               .call(
@@ -274,28 +287,23 @@ export function Hero() {
           };
           const intro = gsap.timeline();
 
-          // 0. The reeded wall: the upper flutes drop and the lower ones rise, centre first, to meet at the seam,
-          // then one soft sheen runs across it left to right in step with the jumping tiles.
-          // Only transform and opacity animate.
-          const left = section.getBoundingClientRect().left;
-          gsap.set(flutes, { scaleY: 0 });
-          flutes.forEach((el, k) => {
-            const r = el.getBoundingClientRect();
-            const across = Math.min(1, Math.max(0, (r.left - left + r.width / 2) / W)); // 0 left edge, 1 right edge
-            const fromCentre = Math.abs(across - 0.5) * 2; // 0 at the centre, 1 at the edges
-            const lower = el.parentElement?.classList.contains("flute-row-b") ? 0.1 : 0;
-            const glint = glints[k];
-            intro.to(el, { scaleY: 1, duration: 0.9, ease: "expo.out" }, fromCentre * 0.4 + lower);
-            const tWave = T_WAVE + across * ((TILES.length - 1) * STEP) + lower;
-            intro
-              .fromTo(glint, { opacity: 0 }, { opacity: 0.34, duration: 0.22, ease: "power2.out" }, tWave)
-              .to(glint, { opacity: 0, duration: 0.55, ease: "power2.inOut" }, tWave + 0.22);
-          });
+          // 0. The wall: the room lights up while the count climbs. The shade lifts, the window's glow opens from the
+          // upper left and the flutes sharpen, so the light itself is the progress. Opacity and transform only.
+          intro.fromTo(wall, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.5, ease: "power1.out" }, 0);
+          intro.fromTo(shade, { opacity: 1 }, { opacity: 0, duration: T_CONVERGE, ease: "power2.out" }, 0);
+          intro.fromTo(
+            glow,
+            { opacity: 0, scale: 0.7 },
+            { opacity: 1, scale: 1.12, duration: T_CONVERGE + 0.4, ease: "power2.out" },
+            0,
+          );
+          intro.fromTo(relief, { opacity: 0.35 }, { opacity: 1, duration: T_CONVERGE, ease: "power1.inOut" }, 0);
 
           // 1. Row fades in, aligned
           intro.to(tiles, { autoAlpha: 1, y: 0, duration: 0.7, ease: "expo.out", stagger: 0.04 }, 0);
           intro.fromTo(imgs, { scale: 1.3 }, { scale: 1, duration: 1, ease: "expo.out", stagger: 0.04 }, 0);
           intro.to(chrome, { autoAlpha: 1, y: 0, duration: 0.6, stagger: 0.08, ease: "expo.out" }, 0.1);
+          intro.to(shadow, { autoAlpha: 1, duration: 0.8, ease: "power2.out" }, 0.15);
 
           // 2. Loader wave: each tile leaps, lands, rebounds slightly; the counter advances with every leap
           tiles.forEach((el, i) => {
@@ -314,6 +322,7 @@ export function Hero() {
 
           // 3. At 100 the row is straight; slide everything together, video on top (it has the highest z-index)
           intro.to(chrome, { autoAlpha: 0, y: -10, duration: 0.4, ease: "power2.in" }, T_CONVERGE);
+          intro.to(shadow, { autoAlpha: 0, scaleX: 0.2, duration: CONVERGE_LEN, ease: "expo.inOut" }, T_CONVERGE);
           intro.to(
             tiles,
             { x: 0, duration: CONVERGE_LEN, ease: "expo.inOut", stagger: { each: 0.025, from: "edges" } },
@@ -378,24 +387,25 @@ export function Hero() {
       aria-labelledby="hero-title"
       className="hero relative h-[100dvh] min-h-[620px] overflow-hidden bg-stone"
     >
-      {/* Loader backdrop: a reeded wall of flutes (see the CSS), two rows brick-offset so the seam reads like organ pipes */}
-      <div aria-hidden className="hero-flutes">
-        {["t", "b"].map((row) => (
-          <div key={row} className={`flute-row flute-row-${row}`}>
-            {Array.from({ length: 24 }, (_, i) => (
-              <span key={i} className="flute">
-                <i />
-              </span>
-            ))}
-          </div>
-        ))}
+      {/* Loader wall: lime plaster, reeded, lit from a window at the upper left (see the CSS) */}
+      <div aria-hidden className="hero-wall">
+        <div className="wall-relief" />
+        <div className="wall-glow" />
+        <div className="wall-shade" />
+      </div>
+
+      {/* The studio's name, exactly where the nav's wordmark will arrive, so the loader belongs to the same page */}
+      <div aria-hidden className="pointer-events-none absolute inset-x-0 top-[1.1rem] z-[6] flex justify-center">
+        <span className="hero-chrome font-display text-[1.3rem] leading-none text-umber sm:text-[1.85rem]">
+          Hallam &amp; Wren
+        </span>
       </div>
 
       {/* Loader counter, big, on the stone screen */}
       <span
         ref={counter}
         aria-hidden
-        className="hero-chrome absolute bottom-5 left-5 font-display text-[clamp(5.5rem,17vw,16rem)] leading-[0.8] text-umber [font-variant-numeric:lining-nums_tabular-nums] md:bottom-8 md:left-[5vw]"
+        className="hero-chrome absolute bottom-5 left-5 font-display text-[clamp(5.5rem,16vw,15rem)] leading-[0.8] tracking-[-0.03em] text-umber [font-variant-numeric:lining-nums_tabular-nums] md:bottom-8 md:left-[5vw]"
       >
         000
       </span>
@@ -412,6 +422,7 @@ export function Hero() {
       {/* Stage: the tile row (the last tile is the playing video). z-5 puts it above the About background and
           below the About text, so the video card can travel between them. */}
       <div aria-hidden className="absolute inset-0 isolate z-[5]">
+        <div className="g-shadow absolute left-1/2 top-1/2" />
         {TILES.map((tileItem, i) =>
           tileItem.kind === "video" ? (
             <div key="video" className="g-card absolute left-1/2 top-1/2" data-story="media">
@@ -448,7 +459,7 @@ export function Hero() {
                   alt=""
                   fill
                   priority
-                  sizes="64px"
+                  sizes="80px"
                   className="object-cover"
                 />
               </div>

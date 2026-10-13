@@ -116,71 +116,76 @@ html.lenis body {
 }
 
 /*
-  Loader backdrop: a fluted plaster wall, tone on tone with the stone screen. Two rows of vertical flutes meet at the
-  centre line (the lower row set half a flute across, so the seam reads like organ pipes), where the tiles stand.
-  The difference between flutes is only a shade or two, with a faint light falling from the top, so the wall gives
-  the screen depth without competing with the tiles and the counter. The flutes rise in from the top and bottom
-  (the same slat motion as the project reveals), and a soft sheen runs across them with the jumping tiles.
+  Loader wall: lime plaster with a reeded relief, lit from a window at the upper left. It is one continuous surface, so
+  nothing divides the screen and the tiles stand in front of it. Layers, bottom to top: the plaster itself (tone, and a
+  fall into the far corner); the relief (each flute shaded as a half-cylinder: a dark groove, a bright shoulder, a soft
+  roll-off into the next groove); the glow of the window; a shade that lifts; and a fine grain, so the gradients never
+  band. The light is the progress: as the counter climbs the shade lifts, the glow opens and the flutes sharpen.
 */
-.hero-flutes {
-  --fw: clamp(64px, 7vw, 132px);
+.hero-wall {
+  --fw: clamp(30px, 3.7vw, 60px); /* one flute */
   position: absolute;
   inset: 0;
   overflow: hidden;
   pointer-events: none;
+  isolation: isolate;
+  background:
+    radial-gradient(90% 75% at 100% 112%, rgb(43 39 35 / 0.2), transparent 70%),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--stone) 88%, var(--raised)) 0%,
+      var(--stone) 55%,
+      color-mix(in srgb, var(--stone) 90%, var(--ink)) 100%
+    );
 }
-.hero-flutes::after {
+.wall-relief,
+.wall-glow,
+.wall-shade {
+  position: absolute;
+  inset: 0;
+}
+.wall-relief {
+  /* One flute, repeated. A flute is centred on the screen, which is where the tiles gather. */
+  background-image: linear-gradient(
+    90deg,
+    rgb(43 39 35 / 0.075) 0%,
+    rgb(43 39 35 / 0.02) 8%,
+    rgb(251 249 244 / 0) 20%,
+    rgb(251 249 244 / 0.17) 34%,
+    rgb(251 249 244 / 0.06) 56%,
+    rgb(43 39 35 / 0.015) 76%,
+    rgb(43 39 35 / 0.05) 92%,
+    rgb(43 39 35 / 0.075) 100%
+  );
+  background-size: var(--fw) 100%;
+  background-position: 50% 0;
+  /* The relief is clearest near the window and quietly gives way to plain plaster towards the far corner */
+  mask-image: radial-gradient(135% 125% at 14% 0%, #000 34%, rgb(0 0 0 / 0.5) 100%);
+}
+.wall-glow {
+  background: radial-gradient(72% 95% at 10% -6%, rgb(251 249 244 / 0.68), rgb(251 249 244 / 0.2) 48%, transparent 74%);
+  transform-origin: 10% 0;
+}
+.wall-shade {
+  background: rgb(43 39 35 / 0.15);
+}
+.hero-wall::after {
   content: "";
   position: absolute;
   inset: 0;
-  background: radial-gradient(120% 75% at 50% 0%, rgb(251 249 244 / 0.16), transparent 62%);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .17 0 0 0 0 .15 0 0 0 0 .14 0 0 0 .6 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  opacity: 0.09;
+  mix-blend-mode: multiply;
 }
-.flute-row {
-  position: absolute;
-  right: 0;
-  left: 0;
-  display: flex;
-  height: 50%;
-}
-.flute-row-t {
-  top: 0;
-}
-.flute-row-b {
-  bottom: 0;
-  margin-left: calc(var(--fw) / -2);
-}
-.flute {
-  position: relative;
-  flex: none;
-  width: var(--fw);
-  height: 100%;
-  background-color: color-mix(in srgb, var(--stone) 97%, var(--raised));
-  background-image: linear-gradient(
-    90deg,
-    rgb(43 39 35 / 0.045) 0%,
-    rgb(43 39 35 / 0) 32%,
-    rgb(251 249 244 / 0.07) 78%,
-    rgb(251 249 244 / 0) 100%
-  );
-}
-.flute:nth-child(even) {
-  background-color: color-mix(in srgb, var(--stone) 98.5%, var(--ink));
-}
-.flute-row-t .flute {
-  transform-origin: 50% 0;
-}
-.flute-row-b .flute {
-  transform-origin: 50% 100%;
-}
-.flute i {
-  position: absolute;
-  inset: 0;
-  background: rgb(251 249 244 / 0.5);
-  opacity: 0;
-}
-.hero[data-ready="false"] .hero-flutes {
+.hero[data-ready="false"] .hero-wall {
   opacity: 0;
   visibility: hidden;
+}
+/* The soft shadow the row of tiles throws on the wall. The tiles leap above it, so it stays where it is. */
+.g-shadow {
+  background: rgb(43 39 35 / 0.24);
+  filter: blur(26px);
+  opacity: 0;
 }
 
 /* Nav arrives after the loader */
@@ -590,10 +595,11 @@ html[data-loading="true"] .site-nav {
   outline: 2px solid var(--bordeaux);
   outline-offset: 2px;
 }
-/* The wordmark is a small link: its box reaches past the letters (padding), and the margin puts the letters back */
+/* The wordmark is a small link: its box reaches past the letters (padding), and the margin puts the letters back.
+   Only the top and bottom are pulled back: a negative side margin would push the centred wordmark off centre. */
 .nv-brand {
   padding: 0.75rem 0.6rem;
-  margin: -0.75rem -0.6rem;
+  margin: -0.75rem 0;
 }
 @media (max-width: 639px) {
   .nv-brand {
